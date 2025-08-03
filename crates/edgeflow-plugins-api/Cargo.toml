@@ -1,0 +1,23 @@
+[package]
+name = "edgeflow-plugins-api"
+description = "Type/WIT bindings for the EdgeFlow plugins API."
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+keywords = ["proxy", "https", "reverse-proxy", "load-balancer", "pingora"]
+categories = ["web-programming::http-server", "network-programming"]
+
+authors = ["EdgeFlow Team <team@edgeflow.ai>"]
+
+readme = "../../README.md"
+homepage = "https://edgeflow.ai"
+repository = "https://github.com/edgeflow/edgeflow"
+rust-version.workspace = true
+workspace = "../.."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+anyhow = "1.0.97"
+wit-bindgen = "0.41.0"
