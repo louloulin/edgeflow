@@ -992,7 +992,7 @@ dependencies = [
  "short-crypt",
  "strum 0.25.0",
  "strum_macros 0.25.3",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tokio-test",
