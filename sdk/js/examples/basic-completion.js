@@ -1,10 +1,10 @@
 // Basic completion example
-const { ProksiClient } = require('proksi-sdk');
+const { EdgeFlowClient } = require('edgeflow-sdk');
 
 // Initialize the client
-const client = new ProksiClient({
-  baseUrl: process.env.PROKSI_API_URL || 'http://localhost:8000',
-  apiKey: process.env.PROKSI_API_KEY,
+const client = new EdgeFlowClient({
+  baseUrl: process.env.EDGEFLOW_API_URL || 'http://localhost:8000',
+  apiKey: process.env.EDGEFLOW_API_KEY,
   defaultProvider: 'openai',
   defaultModel: 'gpt-3.5-turbo'
 });

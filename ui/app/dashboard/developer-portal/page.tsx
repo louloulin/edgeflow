@@ -229,10 +229,10 @@ export default function DeveloperPortalPage() {
                     
                     <div className="mb-4 rounded-md border p-4">
                       <h4 className="font-medium mb-2">Quick Example</h4>
-                      <pre className="text-sm overflow-x-auto"><code>{`import { ProksiClient } from 'proksi-sdk';
+                      <pre className="text-sm overflow-x-auto"><code>{`import { EdgeFlowClient } from 'edgeflow-sdk';
 
-const client = new ProksiClient({
-  baseUrl: 'https://your-proksi-instance.com',
+const client = new EdgeFlowClient({
+  baseUrl: 'https://your-edgeflow-instance.com',
   apiKey: 'your-api-key'
 });
 
@@ -449,10 +449,10 @@ console.log(response.choices[0].message.content);`}</code></pre>
                     <div className="space-y-4">
                       <div className="rounded-lg border p-4">
                         <h4 className="font-medium mb-2">Streaming Completions</h4>
-                        <pre className="text-sm overflow-x-auto bg-muted rounded-md p-3"><code>{`import { ProksiClient } from 'proksi-sdk';
+                        <pre className="text-sm overflow-x-auto bg-muted rounded-md p-3"><code>{`import { EdgeFlowClient } from 'edgeflow-sdk';
 
-const client = new ProksiClient({
-  baseUrl: 'https://your-proksi-instance.com',
+const client = new EdgeFlowClient({
+  baseUrl: 'https://your-edgeflow-instance.com',
   apiKey: 'your-api-key'
 });
 

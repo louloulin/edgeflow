@@ -177,8 +177,8 @@ const starterTemplates = [
   {
     id: 'react-starter',
     title: 'React Frontend Starter',
-    description: 'React SPA with Proksi SDK integration.',
-    command: 'npx create-proksi-app my-react-app --template react',
+    description: 'React SPA with EdgeFlow SDK integration.',
+    command: 'npx create-edgeflow-app my-react-app --template react',
     language: 'typescript',
     framework: 'react'
   },
@@ -190,11 +190,11 @@ const codeSnippets = [
     id: 'basic-completion',
     title: 'Basic Completion',
     language: 'javascript',
-    code: `import { ProksiClient } from 'proksi-sdk';
+    code: `import { EdgeFlowClient } from 'edgeflow-sdk';
 
-const client = new ProksiClient({
-  baseUrl: 'https://api.your-proksi-instance.com',
-  apiKey: process.env.PROKSI_API_KEY
+const client = new EdgeFlowClient({
+  baseUrl: 'https://api.your-edgeflow-instance.com',
+  apiKey: process.env.EDGEFLOW_API_KEY
 });
 
 async function getCompletion() {
@@ -247,11 +247,11 @@ async function streamCompletion() {
     id: 'vector-operations',
     title: 'Vector Database Operations',
     language: 'javascript',
-    code: `import { ProksiClient } from 'proksi-sdk';
+    code: `import { EdgeFlowClient } from 'edgeflow-sdk';
 
-const client = new ProksiClient({
-  baseUrl: 'https://api.your-proksi-instance.com',
-  apiKey: process.env.PROKSI_API_KEY
+const client = new EdgeFlowClient({
+  baseUrl: 'https://api.your-edgeflow-instance.com',
+  apiKey: process.env.EDGEFLOW_API_KEY
 });
 
 async function vectorDemo() {

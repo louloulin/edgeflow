@@ -15,10 +15,10 @@
 
 ```bash
 # Linux/macOS
-curl -fsSL https://github.com/luizfonseca/edgeflow/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/edgeflow/edgeflow/releases/latest/download/install.sh | sh
 
 # 或者手动下载
-wget https://github.com/luizfonseca/edgeflow/releases/latest/download/edgeflow-linux-x64.tar.gz
+wget https://github.com/edgeflow/edgeflow/releases/latest/download/edgeflow-linux-x64.tar.gz
 tar -xzf edgeflow-linux-x64.tar.gz
 sudo mv edgeflow /usr/local/bin/
 ```

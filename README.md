@@ -314,3 +314,5 @@ EdgeFlow is built on the shoulders of giants. Special thanks to:
 [🚀 Get Started](#-quick-start) • [📖 Documentation](docs/) • [💬 Community](#-community) • [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
+"AI at the Edge, Flow at Scale" - EdgeFlow让AI在边缘流动起来！
+

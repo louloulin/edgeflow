@@ -1,10 +1,10 @@
 [package]
 name = "edgeflow"
-description = "A batteries-included reverse proxy with automatic HTTPS using Cloudflare Pingora and Let's Encrypt."
+description = "EdgeFlow - 边缘AI数据流处理平台，高性能边缘AI网关和推理平台"
 version = "0.6.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-keywords = ["proxy", "https", "reverse-proxy", "load-balancer", "pingora"]
+keywords = ["ai", "edge", "gateway", "wasm", "inference"]
 categories = ["web-programming::http-server", "network-programming"]
 exclude = [
     "*.yaml",
@@ -86,10 +86,10 @@ strum = "0.25"
 strum_macros = "0.25"
 html-escape = "0.2"
 
-# [[bench]]
-# name = "dashmap_arc"
-# harness = false
-# path = "../benches"
+[[bench]]
+name = "dashmap_arc"
+harness = false
+path = "../benches"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

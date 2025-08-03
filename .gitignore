@@ -2,8 +2,8 @@
 .DS_Store
 /data
 /dist
-/proksi.yaml
-/proksi.hcl
+/edgeflow.yaml
+/edgeflow.hcl
 .zed/
 .vscode/
 /tmp
