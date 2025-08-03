@@ -1,0 +1,16 @@
+[workspace]
+package = { rust-version = "1.85.0" }
+members = ["crates/edgeflow-request-id", "crates/edgeflow-plugins-api", "crates/edgeflow-gateway"]
+resolver = "2"
+
+[profile.dev]
+opt-level = 0
+incremental = true
+
+[profile.release]
+strip = true       # Automatically strip symbols from the binary.
+lto = true         # Enable link-time optimization.
+debug = false
+codegen-units = 1
+incremental = true
+panic = "abort"    # Abort on panic.
