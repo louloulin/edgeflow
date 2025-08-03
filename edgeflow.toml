@@ -1,0 +1,25 @@
+# EdgeFlow配置文件
+service_name = "edgeflow"
+worker_threads = 2
+
+[server]
+https_address = "0.0.0.0:443"
+http_address = "0.0.0.0:80"
+
+[logging]
+enabled = true
+level = "info"
+access_logs_enabled = true
+
+[docker]
+enabled = false
+
+[lets_encrypt]
+enabled = false
+
+[[routes]]
+host = "localhost"
+
+[[routes.upstreams]]
+ip = "127.0.0.1"
+port = 8080
