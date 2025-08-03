@@ -1,0 +1,14 @@
+[package]
+name = "edgeflow-request-id"
+version = "0.1.0"
+edition = "2021"
+description = "EdgeFlow Request ID Plugin"
+authors = ["EdgeFlow Team <team@edgeflow.ai>"]
+homepage = "https://edgeflow.ai"
+repository = "https://github.com/edgeflow/edgeflow"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+edgeflow-plugins-api = { path = "../edgeflow-plugins-api", version = "0.1.0" }
