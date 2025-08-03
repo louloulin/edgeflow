@@ -1,0 +1,253 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      # - ci
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    outputs:
+      release_created: ${{ steps.release.outputs['crates/proksi--release_created'] }}
+      tag_name: ${{ steps.release.outputs['crates/proksi--tag_name'] }}
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: release
+    name: Target - ${{ matrix.platform.name }}
+    if: ${{ needs.release.outputs.release_created }}
+    strategy:
+      matrix:
+        platform:
+          - name: proksi-linux-musl-x86_64
+            os: ubuntu-latest
+            image: rust:latest
+            bin: proksi
+            cross: true
+            target: x86_64-unknown-linux-musl
+            cargo_command: cross
+          #
+          - name: proksi-linux-musl-aarch64
+            os: ubuntu-latest
+            image: rust:latest
+            cross: true
+            bin: proksi
+            target: aarch64-unknown-linux-musl
+            cargo_command: cross
+          #
+          - name: proksi-linux-gnu-aarch64
+            os: ubuntu-latest
+            image: rust:latest
+            cross: true
+            bin: proksi
+            target: aarch64-unknown-linux-gnu
+            cargo_command: cross
+          #
+          - name: proksi-linux-gnu-x86_64
+            os: ubuntu-latest
+            image: rust:latest
+            bin: proksi
+            cross: true
+            target: x86_64-unknown-linux-gnu
+            cargo_command: cross
+          #
+          - name: proksi-macos-x86_64
+            os: macos-latest
+            image: rust:latest
+            bin: proksi
+            cross: false
+            target: x86_64-apple-darwin
+            cargo_command: cargo
+          #
+          - name: proksi-macos-aarch64
+            os: macos-latest
+            image: rust:latest
+            cross: false
+            bin: proksi
+            target: aarch64-apple-darwin
+            cargo_command: cargo
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
+          cache-provider: github
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt,clippy
+          target: ${{ matrix.platform.target }}
+          cache: false
+
+      - name: Setup Cross
+        # TODO: remove workaround once the issue is resolved: https://github.com/cross-rs/cross/issues/1561
+        run: RUSTFLAGS="" cargo install cross --git https://github.com/cross-rs/cross
+        if: ${{ matrix.platform.cross }}
+
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+        if: contains(matrix.platform.os, 'ubuntu')
+
+      - name: Build binary (*nix)
+        shell: bash
+        if: contains(matrix.platform.os, 'ubuntu')
+        run: |
+          ${{ matrix.platform.cargo_command }} build -p proksi --release --target ${{ matrix.platform.target }}
+
+      - name: Build binary (OSX)
+        shell: bash
+        if: contains(matrix.platform.os, 'macos')
+        run: |
+          ${{ matrix.platform.cargo_command }} build -p proksi --release --target ${{ matrix.platform.target }}
+
+      - name: Package as archive
+        shell: bash
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          tar czvf ../../../${{ matrix.platform.name }}.tar.gz ${{ matrix.platform.bin }}
+
+      - name: Upload artifacts (tar.gz)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.name }}
+          path: "proksi*"
+
+  publish:
+    name: Publish Docker images
+    needs:
+      - release
+      - build
+    permissions:
+      contents: write
+      pull-requests: write
+    if: ${{ needs.release.outputs.release_created }} && ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./data
+
+      - name: List files
+        run: |
+          ls -R ./data
+
+      - name: x86_64 Build Linux image
+        run: |
+          tar -xzvf ./data/proksi-linux-gnu-x86_64/proksi-linux-gnu-x86_64.tar.gz proksi
+          docker buildx build --platform linux/amd64 -t luizfonseca/proksi:${{needs.release.outputs.tag_name}}-amd64 -f Dockerfile . --push
+
+      - name: aarch64 Build Linux image
+        run: |
+          rm proksi
+          tar -xzvf ./data/proksi-linux-gnu-aarch64/proksi-linux-gnu-aarch64.tar.gz proksi
+          docker buildx build --platform linux/arm64 -t luizfonseca/proksi:${{needs.release.outputs.tag_name}}-arm64 -f Dockerfile . --push
+
+      - name: Docker (latest)
+        run: |
+          docker buildx imagetools create -t luizfonseca/proksi:latest luizfonseca/proksi:${{needs.release.outputs.tag_name}}-amd64 luizfonseca/proksi:${{needs.release.outputs.tag_name}}-arm64
+
+      - name: Docker (${{needs.release.outputs.tag_name}})
+        run: |
+          docker buildx imagetools create -t luizfonseca/proksi:${{needs.release.outputs.tag_name}} luizfonseca/proksi:${{needs.release.outputs.tag_name}}-amd64 luizfonseca/proksi:${{needs.release.outputs.tag_name}}-arm64
+
+      - name: Replace The Relative Path In The README.md
+        run: |
+          sed -E 's#(\[[^]]*\])\(\.\/([^)]+)\)#\1(https://github.com/${{ github.repository }}/raw/${{ needs.release.outputs.tag_name }}/\2)#g' README.md > docker.README.md
+
+      - name: Update Docker Images Description
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: luizfonseca/proksi
+          short-description: LoadBalancer and HTTP Proxy with automatic SSL
+          readme-filepath: docker.README.md
+
+  publish-cargo:
+    continue-on-error: true
+    name: Publish to crates.io
+    needs:
+      - release
+      - build
+    if: ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt,clippy
+
+      - name: Publish to crates.io
+        run: cargo publish -p proksi --token ${{ secrets.CRATES_IO_TOKEN }}
+
+  upload-artifacts:
+    continue-on-error: true
+    name: Upload artifacts to Release
+    needs:
+      - release
+      - build
+    if: ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+
+      - name: Download workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./data
+
+      - name: Upload Release Artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release.outputs.tag_name }} \
+          ./data/proksi-linux-gnu-x86_64/proksi-linux-gnu-x86_64.tar.gz ./data/proksi-linux-gnu-aarch64/proksi-linux-gnu-aarch64.tar.gz  \
+          ./data/proksi-macos-x86_64/proksi-macos-x86_64.tar.gz ./data/proksi-macos-aarch64/proksi-macos-aarch64.tar.gz \
+          ./data/proksi-linux-musl-x86_64/proksi-linux-musl-x86_64.tar.gz ./data/proksi-linux-musl-aarch64/proksi-linux-musl-aarch64.tar.gz
