@@ -178,13 +178,30 @@ fn add_route_to_router(
     should_self_sign_cert_on_failure: bool,
 ) {
     // Check if current route already exists
-    let upstream_str = upstream_input
+    // 去重上游服务器，避免重复的ip:port组合
+    let mut unique_upstreams = std::collections::HashSet::new();
+    let upstream_str: Vec<String> = upstream_input
         .iter()
-        .map(|u| format!("{}:{}", u.ip, u.port))
-        .collect::<Vec<String>>();
+        .filter_map(|u| {
+            let addr = format!("{}:{}", u.ip, u.port);
+            if unique_upstreams.insert(addr.clone()) {
+                Some(addr)
+            } else {
+                tracing::debug!("Skipping duplicate upstream: {}", addr);
+                None
+            }
+        })
+        .collect();
+
+    if upstream_str.is_empty() {
+        tracing::error!("No valid upstreams found for host: {}", host);
+        return;
+    }
+
+    tracing::debug!("Creating load balancer with upstreams: {:?}", upstream_str);
 
     let Ok(mut upstreams) = LoadBalancer::<RoundRobin>::try_from_iter(upstream_str) else {
-        tracing::info!(
+        tracing::error!(
             "Could not create upstreams for host: {}, upstreams {:?}",
             host,
             upstream_input
@@ -230,13 +247,19 @@ fn add_route_to_router(
     if let Some(plugins) = plugins {
         for plugin in plugins {
             match plugin.name.as_ref() {
-                "oauth2" | "request_id" | "basic_auth" | "tenant" | "compliance" => {
+                "oauth2" | "request_id" | "basic_auth" | "tenant" | "compliance" |
+                "ai_security" | "llm_router" | "prompt_transform" | "performance_analyzer" |
+                "llm_aggregator" | "vector_db" | "ai_analytics" | "ai_request_builder" |
+                "prompt_debugger" => {
                     route_store_container
                         .plugins
                         .insert(plugin.name.to_string(), plugin.clone());
+                    tracing::debug!("Added plugin: {} to route", plugin.name);
                 }
 
-                _ => {}
+                _ => {
+                    tracing::warn!("Unknown plugin: {}, skipping", plugin.name);
+                }
             }
         }
     }
