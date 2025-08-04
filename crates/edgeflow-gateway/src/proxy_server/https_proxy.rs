@@ -156,6 +156,9 @@ impl ProxyHttp for Router {
             return Ok(true);
         };
 
+        // 设置路由容器到上下文中
+        ctx.route_container = route_container.clone();
+
         // Match request pattern based on the URI and Headers
         let uri = req_header.uri.clone();
         let mut matched = true; // Assume match initially

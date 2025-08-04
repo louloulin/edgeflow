@@ -51,23 +51,41 @@ pub enum DockerServiceMode {
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ServerCfg {
-    /// The address to bind the HTTPS server to.
+    /// The address to bind the management HTTPS server to (EdgeFlow management API)
     #[arg(
         long = "server.https_address",
         required = false,
         value_parser,
-        default_value = "0.0.0.0:443"
+        default_value = "0.0.0.0:8999"
     )]
     pub https_address: Option<Cow<'static, str>>,
 
-    /// The address used to solve challenges (only HTTP)
+    /// The address used for HTTP proxy service (Let's Encrypt challenges and redirects)
     #[arg(
         long = "server.http_address",
         required = false,
         value_parser,
-        default_value = "0.0.0.0:80"
+        default_value = "0.0.0.0:8080"
     )]
     pub http_address: Option<Cow<'static, str>>,
+
+    /// The address to bind the HTTPS proxy server to (main proxy functionality)
+    #[arg(
+        long = "server.https_proxy_address",
+        required = false,
+        value_parser,
+        default_value = "0.0.0.0:8443"
+    )]
+    pub https_proxy_address: Option<Cow<'static, str>>,
+
+    /// Enable TLS for the HTTPS proxy service
+    #[arg(
+        long = "server.enable_tls",
+        required = false,
+        value_parser,
+        default_value = "false"
+    )]
+    pub enable_tls: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Args)]
@@ -894,8 +912,10 @@ impl Default for Config {
             config_path: Cow::Borrowed("/etc/edgeflow/config"),
             service_name: Cow::Borrowed("edgeflow"),
             server: ServerCfg {
-                https_address: Some(Cow::Borrowed("0.0.0.0:443")),
-                http_address: Some(Cow::Borrowed("0.0.0.0:80")),
+                https_address: Some(Cow::Borrowed("0.0.0.0:8999")),
+                http_address: Some(Cow::Borrowed("0.0.0.0:8080")),
+                https_proxy_address: Some(Cow::Borrowed("0.0.0.0:8443")),
+                enable_tls: Some(false),
             },
             worker_threads: Some(2),
             upgrade: false,

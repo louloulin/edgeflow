@@ -1,56 +1,47 @@
 use std::sync::Arc;
 use anyhow::{Result};
-use clap::{crate_version, ArgMatches, Command};
 use pingora::server::configuration::ServerConf as PingoraServerConf;
 use pingora::server::Server as PingoraServer;
-use tokio::signal;
-use tracing::{error, info};
+use pingora::proxy::http_proxy_service;
+use tokio::sync::broadcast;
+use tracing::info;
 
 use edgeflow::config::load as load_config;
 use edgeflow::http_server::create_server;
 use edgeflow::monitor::init_prometheus;
-use edgeflow::plugins::api_server::{ApiServerConfig, ApiServerPlugin};
-use edgeflow::plugins::core::Plugin;
 use edgeflow::plugins::manager::PluginManager;
+use edgeflow::proxy_server::https_proxy::Router;
+use edgeflow::proxy_server::http_proxy::HttpLB;
+use edgeflow::services::BackgroundFunctionService;
+use edgeflow::MsgProxy;
 
 pub const SERVER_NAME: &str = "edgeflow";
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
-    // Parse command line arguments
-    let matches = Command::new(SERVER_NAME)
-        .version(crate_version!())
-        .subcommand_required(true)
-        .arg_required_else_help(true)
-        .subcommands([Command::new("start").about("Start the server")])
-        .get_matches();
+    println!("🚀 Starting EdgeFlow - Edge AI Data Flow Platform (Hybrid Architecture)");
 
-    match matches.subcommand() {
-        Some(("start", sub_matches)) => start_server(sub_matches).await,
-        _ => unreachable!(),
-    }
-}
+    // Load configuration (this will also parse CLI arguments)
+    let config = Arc::new(load_config("./")?);
 
-async fn start_server(_matches: &ArgMatches) -> Result<()> {
-    // Load configuration
-    let config = Arc::new(load_config("edgeflow.toml")?);
+    println!("✅ Configuration loaded successfully");
+    println!("   Service name: {}", config.service_name);
+    println!("   Management API: {}", config.server.https_address.as_ref().unwrap_or(&"0.0.0.0:8999".into()));
+    println!("   HTTP Proxy: {}", config.server.http_address.as_ref().unwrap_or(&"0.0.0.0:8080".into()));
+    println!("   HTTPS Proxy: {}", config.server.https_proxy_address.as_ref().unwrap_or(&"0.0.0.0:8443".into()));
 
     // Initialize Prometheus metrics
     init_prometheus();
 
-    // Create plugin manager
-    let plugin_manager = Arc::new(PluginManager::new());
-
-    // Initialize HTTP server
-    let http_server = create_server(config.clone(), plugin_manager.clone())?;
+    // Create broadcast channel for inter-service communication
+    let (broadcast_tx, _) = broadcast::channel::<MsgProxy>(1000);
 
     // Configure Pingora server
     let mut pingora_server = PingoraServer::new(None)?;
     let mut server_conf = PingoraServerConf::default();
-    
+
     // Configure server with proper fields from config
     if let Some(threads) = config.worker_threads {
         server_conf.threads = threads;
@@ -58,45 +49,69 @@ async fn start_server(_matches: &ArgMatches) -> Result<()> {
     server_conf.daemon = config.daemon;
     server_conf.upgrade_sock = "/tmp/edgeflow_upgrade.sock".to_string();
     server_conf.error_log = None; // Using our own logging system
-    
-    // Add services to server
-    pingora_server.add_services(vec![http_server]);
 
-    // Initialize and register plugins
-    if let Some(plugin_configs) = &config.plugins {
-        // Initialize API server plugin if enabled
-        if let Some(api_config) = &plugin_configs.api_server {
-            if api_config.enabled {
-                let plugin_config = ApiServerConfig {
-                    listen_addr: api_config.listen_address.clone()
-                        .unwrap_or_else(|| "127.0.0.1:8080".to_string()),
-                    access_log: api_config.enable_access_log.unwrap_or(true),
-                    cors: api_config.enable_cors.unwrap_or(true),
-                };
+    // Wrap server_conf in Arc for Pingora
+    let server_conf = std::sync::Arc::new(server_conf);
 
-                // Create and initialize plugin
-                let mut plugin = ApiServerPlugin::new(plugin_config).await?;
-                plugin = plugin.with_system_config(config.clone());
-                
-                // Start the plugin
-                plugin.start().await?;
-                
-                // Register the initialized plugin
-                plugin_manager.register(plugin);
-            }
-        }
+    // Create plugin manager
+    let plugin_manager = Arc::new(PluginManager::new());
 
-        // Initialize other plugins here as needed
+    // Create services
+    let mut services: Vec<Box<dyn pingora::services::Service>> = Vec::new();
+
+    // 1. Management HTTP Server (Enhanced version on port 8999)
+    let management_server = create_server(config.clone(), plugin_manager.clone())?;
+    services.push(management_server);
+
+    // 2. HTTP Proxy Service (Let's Encrypt challenges and HTTP redirect, port 8080)
+    {
+        let http_proxy = HttpLB {};
+        let mut http_service = http_proxy_service(
+            &server_conf,
+            http_proxy,
+        );
+        let http_address = config.server.http_address.as_ref()
+            .unwrap_or(&"0.0.0.0:8080".into())
+            .to_string();
+        http_service.add_tcp(&http_address);
+        services.push(Box::new(http_service));
     }
 
-    // Run server
-    info!("Starting {} server...", SERVER_NAME);
-    tokio::spawn(async move {
-        if let Err(e) = signal::ctrl_c().await {
-            error!("Failed to listen for ctrl-c signal: {}", e);
+    // 3. HTTPS Proxy Service (Main proxy functionality, port 8443)
+    {
+        let https_proxy = Router {};
+        let mut https_service = http_proxy_service(
+            &server_conf,
+            https_proxy,
+        );
+        let https_proxy_address = config.server.https_proxy_address.as_ref()
+            .unwrap_or(&"0.0.0.0:8443".into())
+            .to_string();
+
+        // For now, use HTTP on port 8443 (TLS will be added later)
+        https_service.add_tcp(&https_proxy_address);
+
+        // Set worker threads for proxy services
+        if let Some(threads) = config.worker_threads {
+            https_service.threads = Some(threads);
         }
-        std::process::exit(0);
-    });
+        services.push(Box::new(https_service));
+    }
+
+    // 4. Background Services (routing, health check, etc.)
+    let background_service = BackgroundFunctionService::new(config.clone(), broadcast_tx.clone());
+    services.push(Box::new(background_service));
+
+    // Add all services to Pingora server
+    pingora_server.add_services(services);
+
+    // Run server
+    info!("🚀 Starting {} server with Hybrid Architecture...", SERVER_NAME);
+    info!("📊 Management API: {}", config.server.https_address.as_ref().unwrap_or(&"0.0.0.0:8999".into()));
+    info!("🌐 HTTP Proxy: {}", config.server.http_address.as_ref().unwrap_or(&"0.0.0.0:8080".into()));
+    info!("🔒 HTTPS Proxy: {}", config.server.https_proxy_address.as_ref().unwrap_or(&"0.0.0.0:8443".into()));
+    info!("🔧 Background services: routing, health check, certificate management");
+    info!("🎯 EdgeFlow Hybrid Architecture is ready!");
 
     pingora_server.run_forever();
 }
