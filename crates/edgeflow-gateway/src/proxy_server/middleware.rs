@@ -1,16 +1,53 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use pingora::Result;
+use tracing::{debug, warn};
 
-/// Executes the request and response plugins
-#[allow(unused_variables)] // Temporarily allow unused vars until logic is replaced
+use crate::plugins::core::{Plugin, PluginStep};
+use crate::plugins::executor;
+
+/// Executes the response plugins using the new plugin executor
 pub async fn execute_response_plugins(
     session: &mut pingora::proxy::Session,
     ctx: &mut crate::proxy_server::https_proxy::RouterContext,
 ) -> Result<()> {
-    tracing::debug!("Executing response plugins (Old middleware - logic needs update)");
-    // TODO: Replace this entire function body with calls to executor::execute_plugins for PluginStep::Response and PluginStep::Log
-    /*
+    debug!("Executing response plugins using new executor");
+
+    // Get plugins from the plugin manager
+    let plugins = get_active_plugins_for_route(ctx).await;
+
+    // Execute response plugins
+    match executor::execute_plugins(PluginStep::Response, session, ctx, &plugins).await {
+        Ok((handled, response)) => {
+            if handled {
+                debug!("Response plugins handled the response");
+                if let Some(_resp) = response {
+                    // Note: HttpResponse to ResponseHeader conversion would be needed here
+                    // For now, we just log that a response was handled
+                    debug!("Plugin provided custom response");
+                }
+            }
+        },
+        Err(e) => {
+            warn!("Error executing response plugins: {}", e);
+        }
+    }
+
+    // Execute logging plugins
+    match executor::execute_plugins(PluginStep::Log, session, ctx, &plugins).await {
+        Ok((_, _)) => {
+            debug!("Logging plugins executed successfully");
+        },
+        Err(e) => {
+            warn!("Error executing logging plugins: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
+/*
     for (name, value) in ctx.route_container.plugins.clone() {
         match name.as_str() {
             "oauth2" => {
@@ -71,17 +108,51 @@ pub async fn execute_response_plugins(
         }
     }
     */
-    Ok(())
-}
 
-/// Executes the request plugins
-#[allow(unused_variables)] // Temporarily allow unused vars until logic is replaced
+/// Executes the request plugins using the new plugin executor
 pub async fn execute_request_plugins(
     session: &mut pingora::proxy::Session,
     ctx: &mut crate::proxy_server::https_proxy::RouterContext,
     plugins: &HashMap<String, crate::config::RoutePlugin>,
 ) -> Result<bool> {
-    tracing::debug!("Executing request plugins for {} plugins", plugins.len());
+    debug!("Executing request plugins for {} plugins", plugins.len());
+
+    // Get active plugins for this route
+    let active_plugins = get_active_plugins_for_route(ctx).await;
+
+    // Execute early request plugins first
+    match executor::execute_plugins(PluginStep::EarlyRequest, session, ctx, &active_plugins).await {
+        Ok((handled, response)) => {
+            if handled {
+                debug!("Early request plugins handled the request");
+                if let Some(_resp) = response {
+                    // Note: HttpResponse to ResponseHeader conversion would be needed here
+                    debug!("Plugin provided custom response");
+                }
+                return Ok(true);
+            }
+        },
+        Err(e) => {
+            warn!("Error executing early request plugins: {}", e);
+        }
+    }
+
+    // Execute standard request plugins
+    match executor::execute_plugins(PluginStep::Request, session, ctx, &active_plugins).await {
+        Ok((handled, response)) => {
+            if handled {
+                debug!("Request plugins handled the request");
+                if let Some(_resp) = response {
+                    // Note: HttpResponse to ResponseHeader conversion would be needed here
+                    debug!("Plugin provided custom response");
+                }
+                return Ok(true);
+            }
+        },
+        Err(e) => {
+            warn!("Error executing request plugins: {}", e);
+        }
+    }
 
     // 执行插件逻辑
     for (name, plugin_config) in plugins {
@@ -359,4 +430,86 @@ pub fn execute_upstream_response_plugins(
         }
     }
     */
+}
+
+/// Get active plugins for the current route
+async fn get_active_plugins_for_route(
+    ctx: &crate::proxy_server::https_proxy::RouterContext,
+) -> Vec<Arc<dyn Plugin>> {
+    let mut plugins = Vec::new();
+
+    // Get plugins from the global plugin registry
+    for (plugin_name, plugin_config) in &ctx.route_container.plugins {
+        if let Some(plugin) = get_plugin_instance(plugin_name, plugin_config).await {
+            debug!("Adding plugin '{}' for route", plugin_name);
+            plugins.push(plugin);
+        } else {
+            warn!("Plugin '{}' not found or failed to initialize", plugin_name);
+        }
+    }
+
+    plugins
+}
+
+/// Get a plugin instance by name and configuration
+async fn get_plugin_instance(
+    plugin_name: &str,
+    _plugin_config: &crate::config::RoutePlugin,
+) -> Option<Arc<dyn Plugin>> {
+    match plugin_name {
+        "request_id" => {
+            // Create request_id plugin instance
+            Some(create_request_id_plugin().await)
+        },
+        "ai_security" => {
+            // Create AI security plugin instance
+            Some(create_ai_security_plugin().await)
+        },
+        "llm_router" => {
+            // Create LLM router plugin instance
+            Some(create_llm_router_plugin().await)
+        },
+        "performance_analyzer" => {
+            // Create performance analyzer plugin instance
+            Some(create_performance_analyzer_plugin().await)
+        },
+        "prompt_transform" => {
+            // Create prompt transform plugin instance
+            Some(create_prompt_transform_plugin().await)
+        },
+        _ => {
+            debug!("Unknown plugin: {}", plugin_name);
+            None
+        }
+    }
+}
+
+/// Create request_id plugin instance
+async fn create_request_id_plugin() -> Arc<dyn Plugin> {
+    use crate::plugins::request_id::RequestId;
+    Arc::new(RequestId::new())
+}
+
+/// Create AI security plugin instance
+async fn create_ai_security_plugin() -> Arc<dyn Plugin> {
+    use crate::plugins::ai_security::AiSecurity;
+    Arc::new(AiSecurity::new())
+}
+
+/// Create LLM router plugin instance
+async fn create_llm_router_plugin() -> Arc<dyn Plugin> {
+    use crate::plugins::llm_router::LlmRouter;
+    Arc::new(LlmRouter::new())
+}
+
+/// Create performance analyzer plugin instance
+async fn create_performance_analyzer_plugin() -> Arc<dyn Plugin> {
+    use crate::plugins::performance_analyzer::PerformanceAnalyzer;
+    Arc::new(PerformanceAnalyzer::new())
+}
+
+/// Create prompt transform plugin instance
+async fn create_prompt_transform_plugin() -> Arc<dyn Plugin> {
+    use crate::plugins::prompt_transform::PromptTransformer;
+    Arc::new(PromptTransformer::new())
 }
