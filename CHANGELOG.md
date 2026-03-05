@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0 (2026-03-05)
+
+
+### Features
+
+* **final:** add remaining project files and configurations ([ffff438](https://github.com/louloulin/edgeflow/commit/ffff43886c6a0d959d4fa20af89b6536a09c10b1))
+* 增加多上游服务验证和网关功能增强 ([f94654a](https://github.com/louloulin/edgeflow/commit/f94654a02c1e95488bc6ac0838b890398be866bb))
+* 完成EdgeFlow品牌重构项目 ([fd5183f](https://github.com/louloulin/edgeflow/commit/fd5183f78fbdc8696265c4d433a15ae52a73554c))
+* 完成EdgeFlow混合架构改造第一阶段 ([e6a41bd](https://github.com/louloulin/edgeflow/commit/e6a41bd97bf11723839bf86124ac5981ce495306))
+* 实施EdgeFlow混合架构改造第一阶段 ([3512afb](https://github.com/louloulin/edgeflow/commit/3512afbfee5ee7c8dae095ceed7a1b366ce91531))
+
 ## [0.6.0] - 2023-10-xx
 
 ### Added

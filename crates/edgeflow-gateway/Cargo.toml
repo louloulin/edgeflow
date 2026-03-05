@@ -1,7 +1,7 @@
 [package]
 name = "edgeflow"
 description = "EdgeFlow - 边缘AI数据流处理平台，高性能边缘AI网关和推理平台"
-version = "0.6.0"
+version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["ai", "edge", "gateway", "wasm", "inference"]

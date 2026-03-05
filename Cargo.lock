@@ -948,7 +948,7 @@ dependencies = [
 
 [[package]]
 name = "edgeflow"
-version = "0.6.0"
+version = "0.1.0"
 dependencies = [
  "TinyUFO",
  "acme-v2",
@@ -1011,7 +1011,7 @@ dependencies = [
 
 [[package]]
 name = "edgeflow-request-id"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "edgeflow-plugins-api",
 ]
