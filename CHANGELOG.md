@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0 (2026-03-05)
+
+
+### Features
+
+* 完成EdgeFlow品牌重构项目 ([fd5183f](https://github.com/louloulin/edgeflow/commit/fd5183f78fbdc8696265c4d433a15ae52a73554c))
+
 ## [0.6.0] - 2023-10-xx
 
 ### Added
